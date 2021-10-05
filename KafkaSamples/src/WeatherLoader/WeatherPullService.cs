@@ -1,7 +1,9 @@
-﻿using System.Threading;
+﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using static System.Threading.Tasks.Task;
 
 namespace WeatherLoader
 {
@@ -23,13 +25,16 @@ namespace WeatherLoader
             while (!stoppingToken.IsCancellationRequested)
             {
                 var weather = await _provider.GetCurrent(stoppingToken);
-                for (int i = 0; i < 5; i++)
+                var tasks = new List<Task>();
+                for (var i = 0; i < 50; i++)
                 {
-                    await _publisher.Publish(weather, stoppingToken, "WeatherTopic"+ i);
-
+                    tasks.Add( _publisher.Publish(weather, stoppingToken, "WeatherTopic"+i));
                 }
-                _log.LogInformation("Published {weatherCount} weather items", weather.Count);
-                await Task.Delay(1000);
+
+                await WhenAll(tasks);
+                
+                _log.LogInformation("Published {WeatherCount} weather items", weather.Count);
+                await Delay(2000, stoppingToken);
             }
         }
     }

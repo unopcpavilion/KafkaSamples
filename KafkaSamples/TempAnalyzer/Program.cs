@@ -16,7 +16,7 @@ namespace TempAnalyzer
                     var consumerConfig = context.Configuration.GetSection("ConsumerConfig").Get<ConsumerConfig>();
                     
                     services.AddHostedService(sp =>
-                        new MessageConsumer(sp.GetRequiredService<ILogger<MessageConsumer>>(), consumerConfig));
+                        new ServiceBusHostedService(sp.GetRequiredService<ILogger<MessageConsumer>>(), consumerConfig));
                 })
                 .Build()
                 .Run();

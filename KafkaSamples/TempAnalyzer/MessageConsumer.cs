@@ -4,10 +4,11 @@ using System.Threading.Tasks;
 using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+// ReSharper disable TemplateIsNotCompileTimeConstantProblem
 
 namespace TempAnalyzer
 {
-    internal class MessageConsumer: BackgroundService
+    public class MessageConsumer
     {
         private readonly ILogger<MessageConsumer> _log;
         private readonly ConsumerConfig _consumerConfig;
@@ -17,63 +18,49 @@ namespace TempAnalyzer
             _log = log;
             _consumerConfig = consumerConfig;
         }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public  async Task StartListeners(CancellationToken stoppingToken)
         {
-            //await DoOneConsumer(stoppingToken); //~20 threads
-
-            await DoManyConsumers(stoppingToken); //~50 threads
+            await DoManyConsumers(stoppingToken);
         }
-
-        private  Task DoManyConsumers(CancellationToken stoppingToken)
+        private async  Task DoManyConsumers(CancellationToken stoppingToken)
         {
-            var tasks = new List<Task>();
-
-
-            for (var i = 0; i < 5; i++)
+            var consumerBuilder = new ConsumerBuilder<string, int>(_consumerConfig);
+            
+            async Task ConsumeQwert(CancellationToken cancellationToken, int i1)
             {
-                var i1 = i;
-                tasks.Add(Task.Factory.StartNew(() =>
+                var consumer = consumerBuilder.Build();
+                consumer.Subscribe("WeatherTopic" + i1);
+                
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    var consumer = new ConsumerBuilder<string, int>(_consumerConfig).Build();
-                    
-                    consumer.Subscribe("WeatherTopic"+i1);
-
-                    while (!stoppingToken.IsCancellationRequested)
+                    var consumeResult = await DoConsume(consumer, cancellationToken);
+                
+                    if (consumeResult.Message != null)
                     {
-                        var consumeResult = consumer.Consume(stoppingToken);
-
-                        if (consumeResult.Message != null)
-                            _log.LogInformation(consumer.Assignment[0].Topic + " - " + consumeResult.Topic);
-
+                        _log.LogInformation(consumer.Assignment[0].Topic + " - " + consumeResult.Topic);
                     }
-                }, stoppingToken));
+                }
+            }
+
+            var tasks = new List<Task>();
+            
+            for (var i = 0; i < 50; i++)
+            {
+                tasks.Add(ConsumeQwert(stoppingToken, i));
             }
             
-            return  Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
         }
 
-
-        private async Task DoOneConsumer(CancellationToken stoppingToken)
+        private async Task<ConsumeResult<string, int>> DoConsume(IConsumer<string, int> consumer,
+            CancellationToken stoppingToken)
         {
-            await Task.Yield();
-            
-            var consumer = new ConsumerBuilder<string, int>(_consumerConfig).Build();
-            var topics = new string[5];
-            for (var i = 0; i < 5; i++)
+            while (true)
             {
-                topics[i] = "WeatherTopic" + i;
-            }
-            
-            consumer.Subscribe(topics);
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                var consumeResult = consumer.Consume(stoppingToken);
-
-                if (consumeResult.Message != null)
-                    _log.LogInformation(consumer.Assignment[0].Partition + " - " + consumeResult.Topic);
-
+                stoppingToken.ThrowIfCancellationRequested();
+                var consumeResult = consumer.Consume(0);
+                if (consumeResult != null) return consumeResult;
+                await Task.Yield();
             }
         }
     }
