@@ -25,7 +25,7 @@ jobs:
           dotnet-version: ${{ matrix.dotnet-version }}
 
       - name: Install dependencies
-        run: dotnet restore
+        run: cd KafkaSamples && dotnet restore
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
